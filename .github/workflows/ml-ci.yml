@@ -57,7 +57,7 @@ jobs:
       - name: Wait for application health
         run: |
           for i in {1..15}; do
-            if curl -fsS http://localhost:5001/health; then
+            if curl -fsS http://localhost:5000/health; then
               echo "Application is healthy"
               exit 0
             fi
@@ -140,3 +140,23 @@ jobs:
         run: |
           docker stop student-result-container || true
           docker rm student-result-container || true
+
+      - name: Prepare release candidate
+        run: |
+          mkdir -p release_candidate
+          cp app.py release_candidate/
+          cp student_result_model.pkl release_candidate/
+          cp metrics.json release_candidate/
+          cp requirements.txt release_candidate/
+          cp Dockerfile release_candidate/
+          cp .dockerignore release_candidate/
+
+          printf "Student Result Prediction ML Application\nRun: python app.py\nEndpoint: POST /predict\nDocker image: student-result-ml:latest\n" > release_candidate/DEPLOYMENT.txt
+
+      - name: Upload release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: student-result-ml-docker-release
+          path: release_candidate/
+          if-no-files-found: error
+          retention-days: 7
