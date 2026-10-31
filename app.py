@@ -1,3 +1,4 @@
+
 from pathlib import Path
 
 import joblib
@@ -6,7 +7,8 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-MODEL_PATH = Path("student_result_model.pkl")
+MODEL_PATH = Path(__file__).resolve().parent / "student_result_model.pkl"
+
 FEATURES = [
     "attendance",
     "internal_marks",
@@ -21,6 +23,7 @@ def load_model():
             "student_result_model.pkl was not found. "
             "Run the training pipeline first."
         )
+
     return joblib.load(MODEL_PATH)
 
 
@@ -36,8 +39,10 @@ def health_check():
 def predict():
     data = request.get_json(silent=True)
 
-    if not data:
-        return jsonify({"error": "JSON request body is required"}), 400
+    if not isinstance(data, dict):
+        return jsonify({
+            "error": "A valid JSON request body is required"
+        }), 400
 
     missing_fields = [
         feature for feature in FEATURES
@@ -50,20 +55,40 @@ def predict():
             "missing_fields": missing_fields
         }), 400
 
-    sample = pd.DataFrame([{
-        feature: data[feature]
-        for feature in FEATURES
-    }])
+    try:
+        sample = pd.DataFrame([{
+            feature: float(data[feature])
+            for feature in FEATURES
+        }])
 
-    model = load_model()
-    prediction_code = int(model.predict(sample)[0])
-    prediction =  if "PASS" prediction_code == 1 else "FAIL"
+        if not sample.notna().all().all():
+            return jsonify({
+                "error": "All input values must be valid numbers"
+            }), 400
 
-    return jsonify({
-        "prediction": prediction,
-        "prediction_code": prediction_code
-    })
+        model = load_model()
+        prediction_code = int(model.predict(sample)[0])
+
+        prediction = "PASS" if prediction_code == 1 else "FAIL"
+
+        return jsonify({
+            "prediction": prediction,
+            "prediction_code": prediction_code
+        })
+
+    except (ValueError, TypeError):
+        return jsonify({
+            "error": "All input values must be valid numbers"
+        }), 400
+
+    except FileNotFoundError as error:
+        return jsonify({"error": str(error)}), 500
+
+    except Exception as error:
+        return jsonify({
+            "error": f"Prediction failed: {str(error)}"
+        }), 500
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=False)
