@@ -1,5 +1,5 @@
 
-name: Student Result ML CI-CD
+name: Student Result ML CI-CD with Docker
 
 on:
   push:
@@ -16,36 +16,156 @@ permissions:
   contents: read
 
 jobs:
-  train-test-deliver:
+  train-test-docker:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Step 2: Set up Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
+      # Step 3: Upgrade pip
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
+      # Step 4: Install dependencies
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # Step 5: Train ML model
       - name: Train student result model
         run: python train_model.py
 
+      # Step 6: Check ML quality
       - name: Check ML quality gate
         run: python quality_gate.py
 
+      # Step 7: Run ML tests
       - name: Run automated ML tests
         run: python -m unittest test_ml_pipeline.py -v
 
+      # Step 8: Run Flask application tests
       - name: Run prediction application tests
         run: python -m unittest test_app.py -v
 
+      # Step 9: Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t student-result-ml:latest .
+
+      # Step 10: Start Docker container
+      - name: Run Docker container
+        run: |
+          docker run -d \
+            --name student-result-container \
+            -p 5000:5000 \
+            student-result-ml:latest
+
+      # Step 11: Wait for application health
+      - name: Wait for application health
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:5000/health; then
+              echo "Application is healthy"
+              exit 0
+            fi
+            echo "Waiting for application..."
+            sleep 2
+          done
+
+          echo "Application health check failed"
+          docker logs student-result-container
+          exit 1
+
+      # Step 12: Test health endpoint
+      - name: Test health endpoint
+        run: |
+          curl -f http://localhost:5000/health
+
+      # Step 13: Test PASS prediction
+      - name: Test PASS prediction
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.request
+
+          data = {
+              "attendance": 90,
+              "internal_marks": 85,
+              "assignment_marks": 88,
+              "previous_score": 80
+          }
+
+          request = urllib.request.Request(
+              "http://localhost:5000/predict",
+              data=json.dumps(data).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+              method="POST"
+          )
+
+          with urllib.request.urlopen(request) as response:
+              result = json.loads(response.read())
+
+          print("PASS prediction result:", result)
+
+          assert result["prediction"] == "PASS"
+          assert result["prediction_code"] == 1
+
+          print("PASS prediction test successful")
+          PY
+
+      # Step 14: Test FAIL prediction
+      - name: Test FAIL prediction
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.request
+
+          data = {
+              "attendance": 55,
+              "internal_marks": 30,
+              "assignment_marks": 40,
+              "previous_score": 35
+          }
+
+          request = urllib.request.Request(
+              "http://localhost:5000/predict",
+              data=json.dumps(data).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+              method="POST"
+          )
+
+          with urllib.request.urlopen(request) as response:
+              result = json.loads(response.read())
+
+          print("FAIL prediction result:", result)
+
+          assert result["prediction"] == "FAIL"
+          assert result["prediction_code"] == 0
+
+          print("FAIL prediction test successful")
+          PY
+
+      # Step 15: Capture Docker logs
+      - name: Capture Docker logs
+        if: always()
+        run: |
+          docker logs student-result-container || true
+
+      # Step 16: Stop and remove Docker container
+      - name: Cleanup Docker container
+        if: always()
+        run: |
+          docker stop student-result-container || true
+          docker rm student-result-container || true
+
+      # Step 17: Prepare release candidate
       - name: Prepare release candidate
         run: |
           mkdir -p release_candidate
@@ -55,12 +175,14 @@ jobs:
           cp requirements.txt release_candidate/
           cp Dockerfile release_candidate/
           cp .dockerignore release_candidate/
-          printf "Student Result Prediction ML Application\nRun: python app.py\nEndpoint: POST /predict\n" > release_candidate/DEPLOYMENT.txt
 
+          printf "Student Result Prediction ML Application\nRun: python app.py\nEndpoint: POST /predict\nDocker image: student-result-ml:latest\n" > release_candidate/DEPLOYMENT.txt
+
+      # Step 18: Upload release candidate
       - name: Upload release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: student-result-ml-release
+          name: student-result-ml-docker-release
           path: release_candidate/
           if-no-files-found: error
           retention-days: 7
