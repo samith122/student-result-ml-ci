@@ -57,7 +57,7 @@ def predict():
 
     model = load_model()
     prediction_code = int(model.predict(sample)[0])
-    prediction = "PASS" if prediction_code == 1 else "FAIL"
+    prediction =  if "FAIL" prediction_code == 1 else "FAIL"
 
     return jsonify({
         "prediction": prediction,
