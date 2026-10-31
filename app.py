@@ -28,11 +28,19 @@ def load_model():
 
 
 @app.get("/")
-def health_check():
+def home():
     return jsonify({
         "status": "ok",
         "service": "student-result-prediction"
     })
+
+
+@app.get("/health")
+def health_check():
+    return jsonify({
+        "status": "healthy",
+        "service": "student-result-prediction"
+    }), 200
 
 
 @app.post("/predict")
@@ -41,7 +49,7 @@ def predict():
 
     if not isinstance(data, dict):
         return jsonify({
-            "error": "A valid JSON request body is required"
+            "error": "JSON request body is required"
         }), 400
 
     missing_fields = [
@@ -61,11 +69,6 @@ def predict():
             for feature in FEATURES
         }])
 
-        if not sample.notna().all().all():
-            return jsonify({
-                "error": "All input values must be valid numbers"
-            }), 400
-
         model = load_model()
         prediction_code = int(model.predict(sample)[0])
 
@@ -74,21 +77,18 @@ def predict():
         return jsonify({
             "prediction": prediction,
             "prediction_code": prediction_code
-        })
+        }), 200
 
-    except (ValueError, TypeError):
+    except (TypeError, ValueError):
         return jsonify({
-            "error": "All input values must be valid numbers"
+            "error": "All input features must be numeric"
         }), 400
 
     except FileNotFoundError as error:
-        return jsonify({"error": str(error)}), 500
-
-    except Exception as error:
         return jsonify({
-            "error": f"Prediction failed: {str(error)}"
+            "error": str(error)
         }), 500
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000)
