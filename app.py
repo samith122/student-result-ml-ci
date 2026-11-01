@@ -31,7 +31,9 @@ def load_model():
 def home():
     return jsonify({
         "status": "ok",
-        "service": "student-result-prediction"
+        "service": "student-result-prediction",
+        "version": "2.0",
+        "message": "Updated deployment from GitHub Actions and GHCR"
     })
 
 
