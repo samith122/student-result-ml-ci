@@ -4,8 +4,31 @@ from pathlib import Path
 import joblib
 import pandas as pd
 from flask import Flask, jsonify, request
+from flasgger import Swagger
 
 app = Flask(__name__)
+
+app.config["SWAGGER"] = {
+    "title": "Student Result Prediction API",
+    "uiversion": 3
+}
+
+swagger = Swagger(
+    app,
+    config={
+        "headers": [],
+        "specs": [
+            {
+                "endpoint": "apispec_1",
+                "route": "/apispec_1.json",
+                "rule_filter": lambda rule: True,
+                "model_filter": lambda tag: True
+            }
+        ],
+        "swagger_ui": True,
+        "specs_route": "/docs/"
+    }
+)
 
 MODEL_PATH = Path(__file__).resolve().parent / "student_result_model.pkl"
 
@@ -39,6 +62,15 @@ def home():
 
 @app.get("/health")
 def health_check():
+    """
+    Health Check
+    ---
+    tags:
+      - System
+    responses:
+      200:
+        description: API is healthy
+    """
     return jsonify({
         "status": "healthy",
         "service": "student-result-prediction"
@@ -47,6 +79,45 @@ def health_check():
 
 @app.post("/predict")
 def predict():
+    """
+    Predict Student Result
+    ---
+    tags:
+      - Prediction
+    consumes:
+      - application/json
+    parameters:
+      - in: body
+        name: student
+        required: true
+        schema:
+          type: object
+          required:
+            - attendance
+            - internal_marks
+            - assignment_marks
+            - previous_score
+          properties:
+            attendance:
+              type: number
+              example: 90
+            internal_marks:
+              type: number
+              example: 85
+            assignment_marks:
+              type: number
+              example: 88
+            previous_score:
+              type: number
+              example: 80
+    responses:
+      200:
+        description: Student prediction generated successfully
+      400:
+        description: Invalid or missing input
+      500:
+        description: Model file error
+    """
     data = request.get_json(silent=True)
 
     if not isinstance(data, dict):
