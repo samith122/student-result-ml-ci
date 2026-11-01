@@ -1,5 +1,5 @@
 
-name: Student Result ML CI-CD with Docker
+name: Student Result ML CI-CD with Docker and GHCR
 
 on:
   push:
@@ -12,6 +12,11 @@ on:
 
 permissions:
   contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: student-result-prediction
 
 jobs:
   train-test-docker:
@@ -160,3 +165,30 @@ jobs:
           path: release_candidate/
           if-no-files-found: error
           retention-days: 7
+
+      - name: Create lowercase GHCR image name
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          IMAGE_ID="${REGISTRY}/${GITHUB_REPOSITORY_OWNER}/${IMAGE_NAME}"
+          IMAGE_ID=$(echo "$IMAGE_ID" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_ID=$IMAGE_ID" >> "$GITHUB_ENV"
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            docker login "$REGISTRY" \
+            -u "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Tag tested Docker image
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          docker tag student-result-ml:latest "$IMAGE_ID:latest"
+          docker tag student-result-ml:latest "$IMAGE_ID:sha-${GITHUB_SHA}"
+
+      - name: Push tested image to GHCR
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          docker push "$IMAGE_ID:latest"
+          docker push "$IMAGE_ID:sha-${GITHUB_SHA}"
