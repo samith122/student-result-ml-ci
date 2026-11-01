@@ -13,22 +13,31 @@ app.config["SWAGGER"] = {
     "uiversion": 3
 }
 
-swagger = Swagger(
-    app,
-    config={
-        "headers": [],
-        "specs": [
-            {
-                "endpoint": "apispec_1",
-                "route": "/apispec_1.json",
-                "rule_filter": lambda rule: True,
-                "model_filter": lambda tag: True
-            }
-        ],
-        "swagger_ui": True,
-        "specs_route": "/docs/"
-    }
-)
+swagger_config = Swagger.DEFAULT_CONFIG.copy()
+
+swagger_config.update({
+    "specs": [
+        {
+            "endpoint": "apispec_1",
+            "route": "/apispec_1.json",
+            "rule_filter": lambda rule: True,
+            "model_filter": lambda tag: True
+        }
+    ],
+    "static_url_path": "/flasgger_static",
+    "swagger_ui": True,
+    "specs_route": "/docs/",
+    "swagger_ui_bundle_js":
+        "https://unpkg.com/swagger-ui-dist@3/swagger-ui-bundle.js",
+    "swagger_ui_standalone_preset_js":
+        "https://unpkg.com/swagger-ui-dist@3/swagger-ui-standalone-preset.js",
+    "jquery_js":
+        "https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.4/jquery.min.js",
+    "swagger_ui_css":
+        "https://unpkg.com/swagger-ui-dist@3/swagger-ui.css"
+})
+
+swagger = Swagger(app, config=swagger_config)
 
 MODEL_PATH = Path(__file__).resolve().parent / "student_result_model.pkl"
 
